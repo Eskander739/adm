@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"crypto/rand"
 	"database/sql"
@@ -9,6 +10,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/mattn/go-sqlite3"
 	"log"
+	"os"
 	"time"
 )
 
@@ -41,7 +43,11 @@ const (
 	dbname   = "eska"
 )
 
+// var dbFirstName = "root:root@tcp(172.17.0.1:3307)/"
+var text string
+
 func uuid4SQL() string {
+
 	/*
 		Генератор уникальных id
 	*/
@@ -62,13 +68,20 @@ func dsn() string {
 }
 
 func dbConnection() (*sql.DB, error) {
-	var dbFirstName = "root:root@tcp(docker.for.mac.localhost:3307)/"
-	db, err := sql.Open("mysql", dbFirstName)
+
+	db, err := sql.Open("mysql", text)
 	if err != nil {
 		log.Printf("Error %s when opening DB\n", err)
 		return nil, err
 	}
 
+	err = db.Ping()
+	if err != nil {
+		panic(err)
+	}
+	db.SetConnMaxLifetime(time.Minute * 3)
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(10)
 	ctx, cancelfunc := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancelfunc()
 	res, err := db.ExecContext(ctx, `CREATE DATABASE IF NOT EXISTS eska`)
@@ -84,7 +97,7 @@ func dbConnection() (*sql.DB, error) {
 	log.Printf("rows affected %d\n", no)
 
 	db.Close()
-	db, err = sql.Open("mysql", "root:root@tcp(docker.for.mac.localhost:3307)/eska")
+	db, err = sql.Open("mysql", text+"eska")
 	if err != nil {
 		log.Printf("Error %s when opening DB", err)
 		return nil, err
@@ -387,6 +400,13 @@ func (c Db) createTable() error {
 }
 
 func InitImagesDbAdmin() {
+	fmt.Println("Введите подключение: ")
+	var reader = bufio.NewReader(os.Stdin)
+	//root:root@tcp(localhost:54720)/
+	// var dbFirstName = "root:root@tcp(docker.for.mac.localhost:3307)/"
+	//root:root@tcp(172.17.0.1:3307)
+	text, _ = reader.ReadString('\n')
+	fmt.Println("Вы ввели: ", text)
 	var imageTable = map[string]string{"Image": "BLOB"}
 	var tables = map[string]map[string]string{"post_images": imageTable}
 	var db = Db{DbName: "eska", TableName: "post_images", FetchInfo: "post_images", Tables: tables}
